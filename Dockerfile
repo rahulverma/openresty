@@ -1,24 +1,27 @@
-FROM debian:wheezy
+FROM alpine:3.4
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-    curl perl make build-essential procps \
-    libreadline-dev libncurses5-dev libpcre3-dev libssl-dev \
- && rm -rf /var/lib/apt/lists/*
-
-ENV OPENRESTY_VERSION 1.9.7.3
+ENV OPENRESTY_VERSION 1.9.7.5
 ENV OPENRESTY_PREFIX /opt/openresty
 ENV NGINX_PREFIX /opt/openresty/nginx
 ENV VAR_PREFIX /var/nginx
 
+ENV LUAROCKS_VERSION 2.3.0
+
 # NginX prefix is automatically set by OpenResty to $OPENRESTY_PREFIX/nginx
 # look for $ngx_prefix in https://github.com/openresty/ngx_openresty/blob/master/util/configure
 
-RUN cd /root \
+RUN echo "==> Installing dependencies..." \
+ && apk update \
+ && apk add --virtual build-deps \
+    make gcc musl-dev \
+    pcre-dev openssl-dev zlib-dev ncurses-dev readline-dev \
+    curl perl \
+ && mkdir -p /root/ngx_openresty \
+ && cd /root/ngx_openresty \
  && echo "==> Downloading OpenResty..." \
  && curl -sSL http://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz | tar -xvz \
- && echo "==> Configuring OpenResty..." \
  && cd openresty-* \
+ && echo "==> Configuring OpenResty..." \
  && readonly NPROC=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || 1) \
  && echo "using upto $NPROC threads" \
  && ./configure \
@@ -48,11 +51,43 @@ RUN cd /root \
  && ln -sf $OPENRESTY_PREFIX/bin/resty /usr/local/bin/resty \
  && ln -sf $OPENRESTY_PREFIX/luajit/bin/luajit-* $OPENRESTY_PREFIX/luajit/bin/lua \
  && ln -sf $OPENRESTY_PREFIX/luajit/bin/luajit-* /usr/local/bin/lua \
- && rm -rf /root/ngx_openresty*
+ && mkdir -p /root/unzip \
+ && cd /root/unzip \
+ && curl -sSL "http://downloads.sourceforge.net/infozip/unzip60.tar.gz" | tar -xvz \
+ && cd unzip* \
+ && cp ./unix/Makefile ./ \
+ && make generic \
+ && mv /usr/bin/unzip /usr/bin/unzip.old \
+ && mv unzip /usr/bin/unzip \
+ && mkdir -p /root/luarocks \
+ && cd /root/luarocks \
+ && curl -sSL http://luarocks.org/releases/luarocks-${LUAROCKS_VERSION}.tar.gz | tar -xvz \
+ && cd luarocks-* \
+ && ./configure \
+        --prefix=/opt/openresty/luajit/ \
+        --with-lua=/opt/openresty/luajit/ \
+        --with-lua-bin=/opt/openresty/luajit/bin \
+        --with-lua-lib=/opt/openresty/luajit/lib \
+        --lua-suffix=jit-2.1.0-beta1 \
+        --with-lua-include=/opt/openresty/luajit/include/luajit-2.1 \
+ && make build \
+ && make install \
+ && /opt/openresty/luajit/bin/luarocks install lapis \
+ && /opt/openresty/luajit/bin/luarocks install moonscript \
+ && apk del build-deps \
+ && apk add \
+    libpcrecpp libpcre16 libpcre32 openssl libssl1.0 pcre libgcc libstdc++ \
+ && cd /opt/openresty \
+ && rm -rf /var/cache/apk/* \
+ && rm -rf /root/ngx_openresty \
+ && rm -rf /root/unzip \
+ && rm -rf /root/luarocks \
+ && rm /usr/bin/unzip \
+ && mv /usr/bin/unzip.old /usr/bin/unzip
 
 WORKDIR $NGINX_PREFIX/
 
 ONBUILD RUN rm -rf conf/* html/*
 ONBUILD COPY nginx $NGINX_PREFIX/
 
-CMD ["nginx", "-g", "daemon off; error_log /dev/stderr info;"]
+CMD ["/opt/openresty/luajit/bin/lapis", "server"]

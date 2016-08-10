@@ -89,3 +89,9 @@ exec docker run --rm -it \
 ```
 
 Place it next to your `Dockerfile`, make executable and use during development. You may also want to temporarily disable [Lua code cache](https://github.com/openresty/lua-nginx-module#lua_code_cache) to allow testing code modifications without re-starting NginX.
+
+docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev alpine-lapis /bin/ash
+
+docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev -p 8080:8080 alpine-lapis /opt/openresty/luajit/bin/lapis server
+
+docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev -p 8080:8080 alpine-lapis /opt/openresty/luajit/bin/moonc
