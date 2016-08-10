@@ -70,28 +70,35 @@ drwxr-xr-x    2 root     root          4096 Feb  1 14:48 sbin
 
 ### Usage during development
 
-To avoid rebuilding your Docker image after each modification of Lua code or NginX config, you can add a simple script that mounts config/content directories to appropriate locations and starts NginX:
-
-```bash
-#!/usr/bin/env bash
-
-exec docker run --rm -it \
-  --name my-app-dev \
-  -v "$(pwd)/nginx/conf":/opt/openresty/nginx/conf \
-  -v "$(pwd)/nginx/lualib":/opt/openresty/nginx/lualib \
-  -p 8080:8080 \
-  ficusio/openresty:debian "$@"
-
-# you may add more -v options to mount another directories, e.g. nginx/html/
-
-# do not do -v "$(pwd)/nginx":/opt/openresty/nginx because it will hide
-# the NginX binary located at /opt/openresty/nginx/sbin/nginx
+```
+docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev -p 8080:8080 alpine-lapis /opt/openresty/luajit/bin/lapis server
 ```
 
 Place it next to your `Dockerfile`, make executable and use during development. You may also want to temporarily disable [Lua code cache](https://github.com/openresty/lua-nginx-module#lua_code_cache) to allow testing code modifications without re-starting NginX.
 
+## Open a shell in the docker image
 docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev alpine-lapis /bin/ash
 
 docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev -p 8080:8080 alpine-lapis /opt/openresty/luajit/bin/lapis server
 
 docker run --rm -it -v "$(pwd)/dev":/root/dev:z --name lapis-dev -w /root/dev -p 8080:8080 alpine-lapis /opt/openresty/luajit/bin/moonc
+
+## Remove a docker image
+docker rmi -f 112846950b5c
+
+## Build the image
+docker build -t alpine-lapis .
+
+docker run -p 8080:8080 -v "$(pwd)/app":/app:z alpine-lapis
+
+docker run -d -p 8080:8080 alpine-lapis
+
+docker run --rm -it --name lapis-dev alpine-lapis /bin/ash
+
+# attach to a running docker
+docker exec -it <containerIdOrName> /bin/ash
+
+
+docker run -it -v "$(pwd)/app":/app:z -p 8080:8080 alpine-lapis
+
+/opt/openresty/nginx/sbin/nginx -p /app/ -c nginx.conf.compiled
